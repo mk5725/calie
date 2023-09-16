@@ -17,11 +17,15 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.logging.log4j.util.Strings;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
+import java.util.concurrent.TimeUnit;
 
 @Slf4j
 @Service
@@ -32,6 +36,8 @@ public class DishServiceImpl extends ServiceImpl<DishMapper, Dish> implements Di
     private DishFlavorService dishFlavorService;
     @Autowired
     private CategoryService categoryService;  // 用于查询分类名字
+    @Autowired
+    private RedisTemplate redisTemplate;
 
     // 分页查询所有菜品
     @Override
@@ -75,7 +81,12 @@ public class DishServiceImpl extends ServiceImpl<DishMapper, Dish> implements Di
     @Override
     @Transactional   // 声明事务
     public Boolean saveDishWithFlavor(DishDto dishDto) {
-//        Dish dish = dishDto;
+        // 新增菜品时删除对应分类缓存信息
+        String key = "dish_" + dishDto.getCategoryId() + "_" + dishDto.getStatus();
+        if (redisTemplate.hasKey(key)) {
+            redisTemplate.delete(key);
+        }
+
         // 新增菜品信息
         dishMapper.insert(dishDto);    // 向上转型
         // 获取菜品id
@@ -95,6 +106,12 @@ public class DishServiceImpl extends ServiceImpl<DishMapper, Dish> implements Di
     @Override
     @Transactional
     public Boolean updateDishWithFlavor(DishDto dishDto) {
+        // 更新菜品时删除对应分类缓存信息
+        String key = "dish_" + dishDto.getCategoryId() + "_" + dishDto.getStatus();
+        if (redisTemplate.hasKey(key)) {
+            redisTemplate.delete(key);
+        }
+
         // 更新菜品信息
         dishMapper.updateById(dishDto);
 //        dishMapper.updateById((Dish) dishDto);
@@ -150,6 +167,15 @@ public class DishServiceImpl extends ServiceImpl<DishMapper, Dish> implements Di
     @Override
     @Transactional(readOnly = true)
     public List<DishDto> getDishByCategoryId(Dish dish){
+
+        String key = "dish_" + dish.getCategoryId() + "_" + dish.getStatus();
+
+        // 从缓存中加载数据
+        ValueOperations valueOperations = redisTemplate.opsForValue();
+        if (redisTemplate.hasKey(key)) {
+            return (List<DishDto>) valueOperations.get(key);
+        }
+
         List<DishDto> arrayList = new ArrayList<>();
         LambdaQueryWrapper<Dish> wrapper = new LambdaQueryWrapper<>();
         // 添加查询条件 分来ID
@@ -169,7 +195,7 @@ public class DishServiceImpl extends ServiceImpl<DishMapper, Dish> implements Di
             dishDto.setFlavors(flavorList);
             arrayList.add(dishDto);
         });
-
+        valueOperations.set(key, arrayList, 60, TimeUnit.MINUTES);  // 设置key有效期5分钟
         return arrayList;
     }
 
@@ -177,6 +203,10 @@ public class DishServiceImpl extends ServiceImpl<DishMapper, Dish> implements Di
     @Override
     @Transactional
     public Boolean removeWithFlavor(List<Long> ids) {
+        // 删除菜品时，删除所有菜品缓存信息
+        Set<String> keys = redisTemplate.keys("dish"+"*");
+        redisTemplate.delete(keys);
+
         // 批量删除菜品信息
         dishMapper.deleteBatchIds(ids);
 

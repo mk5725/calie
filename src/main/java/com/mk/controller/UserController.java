@@ -5,15 +5,10 @@ import com.mk.pojo.User;
 import com.mk.service.UserService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
-
-import javax.servlet.http.Cookie;
+import org.springframework.web.bind.annotation.*;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
-import javax.servlet.http.HttpSession;
+import java.util.Map;
 
 @Slf4j
 @RestController
@@ -24,10 +19,17 @@ public class UserController {
 
     // 登录验证
     @PostMapping("/login")
-    public R loginCheck(@RequestBody User user, HttpServletRequest request, HttpServletResponse response){
-
-        userService.loginCheck(user, request, response);
-        return R.SUCCESS();
+    public R loginCheck(@RequestBody Map map, HttpServletRequest request){
+        if (userService.loginCheck(map, request)) {
+            return R.SUCCESS();
+        }
+        return R.ERROR("验证码无效！");
+    }
+    // 获取验证码
+    @PostMapping("/sendMsg")
+    public R sendMsg(@RequestBody User user){
+        String code = userService.sendMsg(user);
+        return R.SUCCESS(code);
     }
 
     // 退出登录
