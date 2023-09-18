@@ -14,9 +14,10 @@ spring:
     host: 127.0.0.1
     port: 6379
     database: 0
-  mvc:
-    pathmatch:
-      matching-strategy: ant_path_matcher
+  cache:
+    type: redis   # 指定redis为缓存管理器
+    redis:
+      time-to-live: 1800000    # 设置缓存有效期
 mybatis-plus:
   configuration:
     #在映射实体或者属性时，将数据库中表名和字段名中的下划线去掉，按照驼峰命名法映射

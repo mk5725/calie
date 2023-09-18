@@ -18,10 +18,13 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.logging.log4j.util.Strings;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cache.CacheManager;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -37,6 +40,8 @@ public class SetmealServiceImpl implements SetmealService {
     private CategoryService categoryService;  // 用于查询分类名称
     @Autowired
     private RemoveFileUtils removeFileUtils;  // 用于删除套餐图片
+    @Autowired
+    private CacheManager cacheManager;
 
     // 保存套餐信息，同时保存套餐菜品信息。
     @Override
@@ -184,10 +189,13 @@ public class SetmealServiceImpl implements SetmealService {
 
     // 根据分类Id查询套餐信息
     @Override
+    // TODO 修改套餐信息时删除套餐相关缓存数据
+    @Cacheable(value = "setmeal", key = "#setmeal.getCategoryId()")      // 先从缓存中加载数据，若无：则将方法返回结果存入至缓存当中
     public List<Setmeal> listByCategoryId(Setmeal setmeal){
         LambdaQueryWrapper<Setmeal> wrapper = Wrappers.lambdaQuery();
         wrapper.eq(Setmeal::getCategoryId, setmeal.getCategoryId());
         wrapper.eq(Setmeal::getStatus, setmeal.getStatus());  // 过滤停售
-        return setmealMapper.selectList(wrapper);
+        List<Setmeal> setmeals = setmealMapper.selectList(wrapper);
+        return setmeals;
     }
 }
